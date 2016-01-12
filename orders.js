@@ -17,9 +17,13 @@ db.customer.insert({"_id": "cust.2", "name": {"first": "Emilian", "middle": "E",
 db.customer.insert({"_id": "cust.3", "name": {"first": "Doina", "middle": "E", "last": "Tabara"}, "email": "doina.tabara@gmail.com", "address": "Iasi", "phone": [{"mobile": "+40 111 222444", "home": "+40 222 888111"}], "orders": ["order.3"]})
 
 
-products -> number of orders containing product_id
-
+// P1. Products -> number of orders containing product_id
+// Solution:
 // we parse each order and foreach product in products array, we emit value 1
+// product.1 [1,1]
+// product.2 [1,1]
+// etc
+// product.3 [1]
 map_number_orders = function(){
     this.products.forEach(function(value){
         emit(value, 1);
@@ -36,3 +40,49 @@ reduce_number_orders = function(key,values){
 }
 
 result = db.orders.mapReduce(map_number_orders, reduce_number_orders, {out: {replace:"numberproducts"}});
+
+
+// P2. Products report
+// produce a listing of products-category and how many orders
+// are containing the productID
+// Choose a common key value to link Map and Reduce
+map_order_report_names = function(){
+    emit(this._id, {name: this.category + ' ' + this.name, numberproducts:0});
+}
+
+map_order_report_number = function(){
+    this.products.forEach(function (value){
+        emit(value, {name: '', numberproducts: 1});
+    });
+}
+
+// How to debug
+var order = db.orders.findOne();
+var product = db.products.findOne();
+var emit = function(key, value){
+    print("key:" + key + "  value: " + tojson(value));
+}
+map_order_report_names.apply(product);
+// key:product.1  value: { "name" : "Category 1 Product One", "numberproducts" : 0 }
+map_order_report_number.apply(order);
+// key:product.1  value: { "name" : "", "numberproducts" : 1 }
+// key:product.2  value: { "name" : "", "numberproducts" : 1 }
+
+reduce_orders_report = function(key,values){
+    var result = {name: '', numberproducts:0};
+    values.forEach(function(value){
+        result.numberproducts += value.numberproducts;
+        if (result.name === ''){
+            result.name = value.name;
+        }
+    });
+    return result;
+}
+
+var product_map_output={"product.1": [{ "name" : "Category 1 Product One", "numberproducts" : 0 }]};
+var order_map_output={
+    "product.1":{ "name" : "", "numberproducts" : 1 },
+    "product.2":{ "name" : "", "numberproducts" : 1 }
+};
+
+result = db.orders.mapReduce(map_order_report_number, reduce_orders_report, {out: {replace: "ordersreport"}});
